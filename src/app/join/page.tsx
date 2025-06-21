@@ -106,7 +106,7 @@ export default function JoinPage() {
             <h3 className="text-lg font-semibold mb-4">Share this link</h3>
             <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 mb-4">
               <span className="text-sm text-gray-600 truncate flex-1">
-                {typeof window !== 'undefined' ? window.location.origin : 'https://dineosaur.vercel.app'}
+                {typeof window !== 'undefined' ? window.location.origin : 'https://dine-o-saur.vercel.app/'}
               </span>
               <button
                 onClick={handleCopyLink}
