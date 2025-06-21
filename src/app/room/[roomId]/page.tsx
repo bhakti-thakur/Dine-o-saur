@@ -78,7 +78,8 @@ export default function RoomPage() {
       createdAt: new Date(),
       expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
       users: [],
-      isActive: true
+      isActive: true,
+      stage: 'waiting',
     }).catch(() => {});
     // Add user to Firestore
     upsertUser(roomId, user);
