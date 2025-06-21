@@ -55,7 +55,7 @@ We love devs who love food and fun UX. PRs welcome.
 ## 📬 Contact
 
 Have a suggestion or idea?  
-Drop us a line: **in comments😆**
+Drop us a line: **in issues ✏️**
 
 ---
 
