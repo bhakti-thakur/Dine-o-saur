@@ -188,7 +188,6 @@ export default function RoomPage() {
         {stage === 'swiping' && (
           <SwipeScreen
             room={room}
-            currentUser={currentUser}
             onComplete={handleSwipingComplete}
           />
         )}
