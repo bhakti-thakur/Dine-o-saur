@@ -229,7 +229,6 @@ export default function RoomPage() {
             onComplete={handlePreferencesComplete}
             currentPreferences={currentUser.preferences}
             roomId={roomId}
-            userId={currentUser.id}
           />
         )}
 
