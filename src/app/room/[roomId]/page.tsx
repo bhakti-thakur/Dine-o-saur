@@ -17,8 +17,10 @@ import {
   listenUsers,
   updateRoomStage,
   markUserDone,
-  removeUser
+  removeUser,
+  roomRef
 } from '@/lib/firebaseRoom';
+import { getDoc } from 'firebase/firestore';
 
 type RoomStage = 'waiting' | 'preferences' | 'swiping' | 'results';
 
@@ -26,13 +28,14 @@ export default function RoomPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
-  const roomType = searchParams.get('type') as 'couple' | 'group';
+  const urlRoomType = searchParams.get('type') as 'couple' | 'group' | null;
   
   const [stage, setStage] = useState<RoomStage>('waiting');
   const [room, setRoom] = useState<Room | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
+  const [roomType, setRoomType] = useState<'couple' | 'group'>('group');
 
   // --- Firestore Real-Time Listeners ---
   useEffect(() => {
@@ -42,6 +45,7 @@ export default function RoomPage() {
       if (roomData) {
         setRoom(roomData as Room);
         setStage(roomData.stage || 'waiting');
+        setRoomType(roomData.type); // Always use Firestore type
       }
     });
     // Listen to users in room
@@ -71,34 +75,44 @@ export default function RoomPage() {
       localStorage.setItem('dineosaur_user', JSON.stringify(user));
     }
     setCurrentUser(user);
-    // Create room if not exists
-    createRoom({
-      id: roomId,
-      type: roomType || 'group',
-      createdAt: new Date(),
-      expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
-      users: [],
-      isActive: true,
-      stage: 'waiting',
-    }).catch(() => {});
-    // Add user to Firestore
-    upsertUser(roomId, user);
+    // Check if room exists
+    getDoc(roomRef(roomId)).then((docSnap) => {
+      if (!docSnap.exists()) {
+        // Create room if not exists, use URL type
+        createRoom({
+          id: roomId,
+          type: urlRoomType || 'group',
+          createdAt: new Date(),
+          expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
+          users: [],
+          isActive: true,
+          stage: 'waiting',
+        }).catch(() => {});
+        setRoomType(urlRoomType || 'group');
+      } else {
+        // Use Firestore type
+        const data = docSnap.data() as Room;
+        setRoomType(data.type);
+      }
+      // Add user to Firestore
+      upsertUser(roomId, user);
+    });
     // Remove user on unload
     const cleanup = () => removeUser(roomId, user.id);
     window.addEventListener('beforeunload', cleanup);
     return () => window.removeEventListener('beforeunload', cleanup);
-  }, [roomId, roomType]);
+  }, [roomId, urlRoomType]);
 
   // --- Progression Logic ---
   // 1. Waiting: Advance to preferences when all users have joined (2 for couple, up to 8 for group)
   useEffect(() => {
     if (!room || !users.length) return;
     if (stage === 'waiting') {
-      if ((room.type === 'couple' && users.length === 2) || (room.type === 'group' && users.length >= 2)) {
+      if ((roomType === 'couple' && users.length === 2) || (roomType === 'group' && users.length >= 2)) {
         updateRoomStage(roomId, 'preferences');
       }
     }
-  }, [stage, users, room, roomId]);
+  }, [stage, users, room, roomId, roomType]);
 
   // 2. Preferences: Advance to swiping when all users have selected preferences
   useEffect(() => {
@@ -219,6 +233,15 @@ export default function RoomPage() {
                   <li>3. Swipe through restaurant recommendations</li>
                   <li>4. Get matched with the best options for your group!</li>
                 </ol>
+              </div>
+              {/* Debug: Show current users in the room */}
+              <div className="mt-6 text-left">
+                <h4 className="font-semibold mb-2">Debug: Users in room</h4>
+                <ul className="text-sm text-gray-700">
+                  {users.map(u => (
+                    <li key={u.id}>{u.name} ({u.id})</li>
+                  ))}
+                </ul>
               </div>
             </div>
           </motion.div>
