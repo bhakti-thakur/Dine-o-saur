@@ -3,16 +3,11 @@ import {
   collection,
   doc,
   setDoc,
-  getDoc,
-  getDocs,
   updateDoc,
   onSnapshot,
   addDoc,
   deleteDoc,
-  serverTimestamp,
-  query,
-  where,
-  orderBy
+  serverTimestamp
 } from 'firebase/firestore';
 import { Room, User, SwipeAction } from './types';
 
