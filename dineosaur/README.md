@@ -1,6 +1,6 @@
-# 🦕 Dineosaur – Where Decisions Get Delicious
+# 🦕 Dine-o-saur – For people who take forever to decide what to eat and go extinct
 
-**Dineosaur** is a quirky, no-login, group-based web app designed to help couples and groups effortlessly decide *where to eat*. Think of it as the love child of **Spotify’s onboarding**, **Tinder’s swipe experience**, and **Zomato’s food universe** — all wrapped into a seamless, mobile-first experience.
+**Dine-o-saur** is a quirky, no-login, group-based web app designed to help couples and groups effortlessly decide *where to eat*. Think of it as the love child of **Spotify’s onboarding**, **Tinder’s swipe experience**, and **Google's food universe** — all wrapped into a seamless, mobile-first experience.
 
 > Because choosing a restaurant shouldn't take longer than dinner itself.
 
@@ -18,7 +18,7 @@
 
 ## 🧠 How It’s Made
 
-Dineosaur is built using:
+Dine-o-saur is built using:
 - **Next.js 14 App Router** for seamless routing and fast UX
 - **Tailwind CSS** for stylish, responsive UI with personality
 - **Framer Motion** to make swipes feel as smooth as butter naan
@@ -29,7 +29,7 @@ We’ve focused on **minimal friction**, **mobile-first design**, and a sprinkle
 
 ---
 
-## 🎉 Why Use Dineosaur?
+## 🎉 Why Use Dine-o-saur?
 
 - Because asking *"kya khana hai?"* 10 times gets old.
 - Because group chats kill the vibe.
@@ -55,7 +55,7 @@ We love devs who love food and fun UX. PRs welcome.
 ## 📬 Contact
 
 Have a suggestion or idea?  
-Drop us a line: **support@dineosaur.app**
+Drop us a line: **in comments😆**
 
 ---
 
