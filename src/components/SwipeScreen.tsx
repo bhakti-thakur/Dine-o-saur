@@ -16,7 +16,6 @@ interface SwipeScreenProps {
 export default function SwipeScreen({ room, currentUser, onComplete }: SwipeScreenProps) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [swipes, setSwipes] = useState<SwipeAction[]>([]);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -38,7 +37,6 @@ export default function SwipeScreen({ room, currentUser, onComplete }: SwipeScre
       timestamp: new Date()
     };
 
-    setSwipes(prev => [...prev, swipeAction]);
     setCurrentIndex(prev => prev + 1);
 
     // Check if we've swiped through all restaurants
@@ -49,7 +47,7 @@ export default function SwipeScreen({ room, currentUser, onComplete }: SwipeScre
     }
   };
 
-  const handleDragEnd = (event: any, info: PanInfo) => {
+  const handleDragEnd = (_event: unknown, info: PanInfo) => {
     const swipeThreshold = 100;
     
     if (info.offset.x > swipeThreshold) {
@@ -87,7 +85,7 @@ export default function SwipeScreen({ room, currentUser, onComplete }: SwipeScre
           <Heart className="w-8 h-8 text-white" />
         </motion.div>
         <h2 className="text-2xl font-bold mb-4">All done!</h2>
-        <p className="text-gray-600">You've swiped through all the restaurants.</p>
+        <p className="text-gray-600">You&apos;ve swiped through all the restaurants.</p>
       </div>
     );
   }

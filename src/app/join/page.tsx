@@ -22,7 +22,7 @@ export default function JoinPage() {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       console.error('Failed to copy link');
     }
   };

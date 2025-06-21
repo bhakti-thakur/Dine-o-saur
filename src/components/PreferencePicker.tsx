@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, ArrowRight } from 'lucide-react';
 import { FOOD_PREFERENCES, MIN_PREFERENCES, MAX_PREFERENCES } from '@/lib/constants';
-import { FoodPreference } from '@/lib/types';
 
 interface PreferencePickerProps {
   onComplete: (preferences: string[]) => void;

@@ -65,7 +65,7 @@ export default function ResultsScreen({ room, currentUser }: ResultsScreenProps)
         </motion.div>
         <h2 className="text-4xl font-bold mb-4">Your Top Matches!</h2>
         <p className="text-xl text-gray-600">
-          Based on your group's preferences, here are the best restaurants for you
+          Based on your group&apos;s preferences, here are the best restaurants for you
         </p>
       </div>
 
