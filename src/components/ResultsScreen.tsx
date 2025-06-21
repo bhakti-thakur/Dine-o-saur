@@ -6,6 +6,7 @@ import { Trophy, MapPin, Globe, Copy, Check, Star, Heart } from 'lucide-react';
 import { Room, User, RestaurantMatch } from '@/lib/types';
 import { MOCK_RESTAURANTS } from '@/lib/constants';
 import { calculateMatches, getTopMatches, copyToClipboard, openInMaps, openWebsite } from '@/lib/utils';
+import Image from 'next/image';
 
 interface ResultsScreenProps {
   room: Room;
@@ -81,10 +82,13 @@ export default function ResultsScreen({ room, currentUser }: ResultsScreenProps)
           >
             {/* Rank Badge */}
             <div className="relative">
-              <img
+              <Image
                 src={match.restaurant.image}
                 alt={match.restaurant.name}
-                className="w-full h-48 object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 400px"
+                priority={index === 0}
               />
               <div className="absolute top-4 left-4 bg-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg">
                 <span className="text-lg font-bold text-gray-800">{getRankIcon(index)}</span>

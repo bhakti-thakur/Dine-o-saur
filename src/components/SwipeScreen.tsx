@@ -6,6 +6,7 @@ import { Heart, X, Star, MapPin, Globe, Copy, Check } from 'lucide-react';
 import { Room, User, Restaurant, SwipeAction } from '@/lib/types';
 import { MOCK_RESTAURANTS } from '@/lib/constants';
 import { filterRestaurantsByPreferences, formatRating, copyToClipboard, openInMaps, openWebsite } from '@/lib/utils';
+import Image from 'next/image';
 
 interface SwipeScreenProps {
   room: Room;
@@ -27,15 +28,6 @@ export default function SwipeScreen({ room, currentUser, onComplete }: SwipeScre
 
   const handleSwipe = (action: 'like' | 'skip' | 'superlike') => {
     if (currentIndex >= restaurants.length) return;
-
-    const currentRestaurant = restaurants[currentIndex];
-    const swipeAction: SwipeAction = {
-      roomId: room.id,
-      userId: currentUser.id,
-      restaurantId: currentRestaurant.id,
-      action,
-      timestamp: new Date()
-    };
 
     setCurrentIndex(prev => prev + 1);
 
@@ -124,10 +116,13 @@ export default function SwipeScreen({ room, currentUser, onComplete }: SwipeScre
       >
         {/* Restaurant Image */}
         <div className="relative h-64 bg-gray-200">
-          <img
+          <Image
             src={currentRestaurant.image}
             alt={currentRestaurant.name}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 400px"
+            priority
           />
           <div className="absolute top-4 right-4 bg-white rounded-full px-3 py-1 flex items-center">
             <Star className="w-4 h-4 text-yellow-500 mr-1" />
