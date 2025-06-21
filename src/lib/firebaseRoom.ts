@@ -50,9 +50,9 @@ export async function upsertUser(roomId: string, user: User) {
 }
 
 // Listen to room changes in real time
-export function listenRoom(roomId: string, cb: (room: any) => void) {
+export function listenRoom(roomId: string, cb: (room: Room | null) => void) {
   return onSnapshot(roomRef(roomId), (doc) => {
-    cb(doc.exists() ? doc.data() : null);
+    cb(doc.exists() ? doc.data() as Room : null);
   });
 }
 

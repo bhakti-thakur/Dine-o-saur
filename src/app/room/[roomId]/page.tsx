@@ -17,8 +17,6 @@ import {
   listenUsers,
   updateRoomStage,
   markUserDone,
-  addSwipe,
-  listenSwipes,
   removeUser
 } from '@/lib/firebaseRoom';
 
@@ -95,7 +93,6 @@ export default function RoomPage() {
   useEffect(() => {
     if (!room || !users.length) return;
     if (stage === 'waiting') {
-      const expected = room.type === 'couple' ? 2 : users.length >= 2;
       if ((room.type === 'couple' && users.length === 2) || (room.type === 'group' && users.length >= 2)) {
         updateRoomStage(roomId, 'preferences');
       }
@@ -177,7 +174,7 @@ export default function RoomPage() {
               <div>
                 <h1 className="text-xl font-bold text-gray-800">Room {roomId}</h1>
                 <p className="text-sm text-gray-600">
-                  {room.type === 'couple' ? 'Couple' : 'Group'} • {room.users.length} users
+                  {room.type === 'couple' ? 'Couple' : 'Group'} • {users.length} users
                 </p>
               </div>
             </div>
@@ -244,10 +241,9 @@ export default function RoomPage() {
           />
         )}
 
-        {stage === 'results' && currentUser && (
+        {stage === 'results' && (
           <ResultsScreen
             room={room}
-            currentUser={currentUser}
             roomId={roomId}
           />
         )}

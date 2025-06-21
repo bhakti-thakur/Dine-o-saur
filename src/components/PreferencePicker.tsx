@@ -11,12 +11,10 @@ interface PreferencePickerProps {
   onComplete: (preferences: string[]) => void;
   currentPreferences: string[];
   roomId: string;
-  userId: string;
 }
 
-export default function PreferencePicker({ onComplete, currentPreferences, roomId, userId }: PreferencePickerProps) {
+export default function PreferencePicker({ onComplete, currentPreferences, roomId }: PreferencePickerProps) {
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>(currentPreferences);
-  const [saving, setSaving] = useState(false);
 
   const handlePreferenceToggle = (preferenceId: string) => {
     setSelectedPreferences(prev => {
@@ -33,14 +31,12 @@ export default function PreferencePicker({ onComplete, currentPreferences, roomI
 
   const handleContinue = async () => {
     if (selectedPreferences.length >= MIN_PREFERENCES) {
-      setSaving(true);
       // Get the full user object from localStorage
       const stored = localStorage.getItem('dineosaur_user');
       if (stored) {
         const user: User = JSON.parse(stored);
         await upsertUser(roomId, { ...user, preferences: selectedPreferences });
       }
-      setSaving(false);
       onComplete(selectedPreferences);
     }
   };
