@@ -7,13 +7,16 @@ import { Room, Restaurant } from '@/lib/types';
 import { MOCK_RESTAURANTS } from '@/lib/constants';
 import { filterRestaurantsByPreferences, formatRating, copyToClipboard, openInMaps, openWebsite } from '@/lib/utils';
 import Image from 'next/image';
+import { addSwipe, markUserDone } from '@/lib/firebaseRoom';
 
 interface SwipeScreenProps {
   room: Room;
   onComplete: () => void;
+  roomId: string;
+  userId: string;
 }
 
-export default function SwipeScreen({ room, onComplete }: SwipeScreenProps) {
+export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeScreenProps) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -25,11 +28,20 @@ export default function SwipeScreen({ room, onComplete }: SwipeScreenProps) {
     setRestaurants(filteredRestaurants);
   }, [room]);
 
-  const handleSwipe = () => {
+  const handleSwipe = async (action: 'like' | 'skip' | 'superlike') => {
     if (currentIndex >= restaurants.length) return;
+    const currentRestaurant = restaurants[currentIndex];
+    await addSwipe(roomId, {
+      roomId,
+      userId,
+      restaurantId: currentRestaurant.id,
+      action,
+      timestamp: new Date()
+    });
     setCurrentIndex(prev => prev + 1);
     // Check if we've swiped through all restaurants
     if (currentIndex + 1 >= restaurants.length) {
+      await markUserDone(roomId, userId);
       setTimeout(() => {
         onComplete();
       }, 500);
@@ -38,11 +50,10 @@ export default function SwipeScreen({ room, onComplete }: SwipeScreenProps) {
 
   const handleDragEnd = (_event: unknown, info: PanInfo) => {
     const swipeThreshold = 100;
-    
     if (info.offset.x > swipeThreshold) {
-      handleSwipe();
+      handleSwipe('like');
     } else if (info.offset.x < -swipeThreshold) {
-      handleSwipe();
+      handleSwipe('skip');
     }
   };
 
@@ -173,7 +184,7 @@ export default function SwipeScreen({ room, onComplete }: SwipeScreenProps) {
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={handleSwipe}
+          onClick={() => handleSwipe('skip')}
           className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
         >
           <X className="w-8 h-8 text-gray-600" />
@@ -182,7 +193,7 @@ export default function SwipeScreen({ room, onComplete }: SwipeScreenProps) {
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={handleSwipe}
+          onClick={() => handleSwipe('like')}
           className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center hover:shadow-lg transition-shadow"
         >
           <Star className="w-8 h-8 text-white" />
@@ -191,7 +202,7 @@ export default function SwipeScreen({ room, onComplete }: SwipeScreenProps) {
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={handleSwipe}
+          onClick={() => handleSwipe('superlike')}
           className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center hover:shadow-lg transition-shadow"
         >
           <Heart className="w-8 h-8 text-white" />

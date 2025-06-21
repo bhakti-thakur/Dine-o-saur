@@ -10,6 +10,17 @@ import { User, Room } from '@/lib/types';
 import PreferencePicker from '@/components/PreferencePicker';
 import SwipeScreen from '@/components/SwipeScreen';
 import ResultsScreen from '@/components/ResultsScreen';
+import {
+  createRoom,
+  upsertUser,
+  listenRoom,
+  listenUsers,
+  updateRoomStage,
+  markUserDone,
+  addSwipe,
+  listenSwipes,
+  removeUser
+} from '@/lib/firebaseRoom';
 
 type RoomStage = 'waiting' | 'preferences' | 'swiping' | 'results';
 
@@ -21,38 +32,97 @@ export default function RoomPage() {
   
   const [stage, setStage] = useState<RoomStage>('waiting');
   const [room, setRoom] = useState<Room | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // --- Firestore Real-Time Listeners ---
   useEffect(() => {
-    // Initialize room and user
-    const userId = generateUserId();
-    const userName = generateUserName();
-    
-    const newUser: User = {
-      id: userId,
-      name: userName,
-      preferences: [],
-      isDoneSwiping: false,
-      joinedAt: new Date()
+    if (!roomId) return;
+    // Listen to room document
+    const unsubRoom = listenRoom(roomId, (roomData) => {
+      if (roomData) {
+        setRoom(roomData as Room);
+        setStage(roomData.stage || 'waiting');
+      }
+    });
+    // Listen to users in room
+    const unsubUsers = listenUsers(roomId, setUsers);
+    return () => {
+      unsubRoom();
+      unsubUsers();
     };
+  }, [roomId]);
 
-    const newRoom: Room = {
+  // --- On Mount: Create/Join Room and User ---
+  useEffect(() => {
+    if (!roomId) return;
+    // Generate or get user from localStorage
+    let user = null;
+    const stored = localStorage.getItem('dineosaur_user');
+    if (stored) {
+      user = JSON.parse(stored);
+    } else {
+      user = {
+        id: generateUserId(),
+        name: generateUserName(),
+        preferences: [],
+        isDoneSwiping: false,
+        joinedAt: new Date()
+      };
+      localStorage.setItem('dineosaur_user', JSON.stringify(user));
+    }
+    setCurrentUser(user);
+    // Create room if not exists
+    createRoom({
       id: roomId,
       type: roomType || 'group',
       createdAt: new Date(),
       expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
-      users: [newUser],
+      users: [],
       isActive: true
-    };
-
-    setCurrentUser(newUser);
-    setRoom(newRoom);
-    
-    // Store user info in localStorage
-    localStorage.setItem('dineosaur_user', JSON.stringify(newUser));
-    localStorage.setItem('dineosaur_room', JSON.stringify(newRoom));
+    }).catch(() => {});
+    // Add user to Firestore
+    upsertUser(roomId, user);
+    // Remove user on unload
+    const cleanup = () => removeUser(roomId, user.id);
+    window.addEventListener('beforeunload', cleanup);
+    return () => window.removeEventListener('beforeunload', cleanup);
   }, [roomId, roomType]);
+
+  // --- Progression Logic ---
+  // 1. Waiting: Advance to preferences when all users have joined (2 for couple, up to 8 for group)
+  useEffect(() => {
+    if (!room || !users.length) return;
+    if (stage === 'waiting') {
+      const expected = room.type === 'couple' ? 2 : users.length >= 2;
+      if ((room.type === 'couple' && users.length === 2) || (room.type === 'group' && users.length >= 2)) {
+        updateRoomStage(roomId, 'preferences');
+      }
+    }
+  }, [stage, users, room, roomId]);
+
+  // 2. Preferences: Advance to swiping when all users have selected preferences
+  useEffect(() => {
+    if (!room || !users.length) return;
+    if (stage === 'preferences') {
+      const allDone = users.every(u => u.preferences && u.preferences.length >= 3);
+      if (allDone) {
+        updateRoomStage(roomId, 'swiping');
+      }
+    }
+  }, [stage, users, room, roomId]);
+
+  // 3. Swiping: Advance to results when all users are done swiping
+  useEffect(() => {
+    if (!room || !users.length) return;
+    if (stage === 'swiping') {
+      const allDone = users.every(u => u.isDoneSwiping);
+      if (allDone) {
+        updateRoomStage(roomId, 'results');
+      }
+    }
+  }, [stage, users, room, roomId]);
 
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/room/${roomId}`;
@@ -65,39 +135,17 @@ export default function RoomPage() {
     }
   };
 
-  const handlePreferencesComplete = (preferences: string[]) => {
-    if (currentUser && room) {
-      const updatedUser = { ...currentUser, preferences };
-      const updatedRoom = {
-        ...room,
-        users: room.users.map(u => u.id === currentUser.id ? updatedUser : u)
-      };
-      
-      setCurrentUser(updatedUser);
-      setRoom(updatedRoom);
-      setStage('swiping');
-      
-      // Update localStorage
-      localStorage.setItem('dineosaur_user', JSON.stringify(updatedUser));
-      localStorage.setItem('dineosaur_room', JSON.stringify(updatedRoom));
+  const handlePreferencesComplete = async (preferences: string[]) => {
+    if (currentUser) {
+      await upsertUser(roomId, { ...currentUser, preferences });
+      setCurrentUser({ ...currentUser, preferences });
     }
   };
 
-  const handleSwipingComplete = () => {
-    if (currentUser && room) {
-      const updatedUser = { ...currentUser, isDoneSwiping: true };
-      const updatedRoom = {
-        ...room,
-        users: room.users.map(u => u.id === currentUser.id ? updatedUser : u)
-      };
-      
-      setCurrentUser(updatedUser);
-      setRoom(updatedRoom);
-      setStage('results');
-      
-      // Update localStorage
-      localStorage.setItem('dineosaur_user', JSON.stringify(updatedUser));
-      localStorage.setItem('dineosaur_room', JSON.stringify(updatedRoom));
+  const handleSwipingComplete = async () => {
+    if (currentUser) {
+      await markUserDone(roomId, currentUser.id);
+      setCurrentUser({ ...currentUser, isDoneSwiping: true });
     }
   };
 
@@ -178,24 +226,29 @@ export default function RoomPage() {
           </motion.div>
         )}
 
-        {stage === 'preferences' && (
+        {stage === 'preferences' && currentUser && (
           <PreferencePicker
             onComplete={handlePreferencesComplete}
             currentPreferences={currentUser.preferences}
+            roomId={roomId}
+            userId={currentUser.id}
           />
         )}
 
-        {stage === 'swiping' && (
+        {stage === 'swiping' && currentUser && (
           <SwipeScreen
             room={room}
             onComplete={handleSwipingComplete}
+            roomId={roomId}
+            userId={currentUser.id}
           />
         )}
 
-        {stage === 'results' && (
+        {stage === 'results' && currentUser && (
           <ResultsScreen
             room={room}
             currentUser={currentUser}
+            roomId={roomId}
           />
         )}
       </div>

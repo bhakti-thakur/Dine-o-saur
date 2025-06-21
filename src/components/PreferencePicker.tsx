@@ -4,14 +4,19 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, ArrowRight } from 'lucide-react';
 import { FOOD_PREFERENCES, MIN_PREFERENCES, MAX_PREFERENCES } from '@/lib/constants';
+import { upsertUser } from '@/lib/firebaseRoom';
+import { User } from '@/lib/types';
 
 interface PreferencePickerProps {
   onComplete: (preferences: string[]) => void;
   currentPreferences: string[];
+  roomId: string;
+  userId: string;
 }
 
-export default function PreferencePicker({ onComplete, currentPreferences }: PreferencePickerProps) {
+export default function PreferencePicker({ onComplete, currentPreferences, roomId, userId }: PreferencePickerProps) {
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>(currentPreferences);
+  const [saving, setSaving] = useState(false);
 
   const handlePreferenceToggle = (preferenceId: string) => {
     setSelectedPreferences(prev => {
@@ -26,8 +31,16 @@ export default function PreferencePicker({ onComplete, currentPreferences }: Pre
     });
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedPreferences.length >= MIN_PREFERENCES) {
+      setSaving(true);
+      // Get the full user object from localStorage
+      const stored = localStorage.getItem('dineosaur_user');
+      if (stored) {
+        const user: User = JSON.parse(stored);
+        await upsertUser(roomId, { ...user, preferences: selectedPreferences });
+      }
+      setSaving(false);
       onComplete(selectedPreferences);
     }
   };

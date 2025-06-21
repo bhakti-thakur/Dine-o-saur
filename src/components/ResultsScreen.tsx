@@ -6,30 +6,29 @@ import { Trophy, MapPin, Globe, Copy, Check, Star, Heart } from 'lucide-react';
 import { Room, User, RestaurantMatch } from '@/lib/types';
 import { MOCK_RESTAURANTS } from '@/lib/constants';
 import { calculateMatches, getTopMatches, copyToClipboard, openInMaps, openWebsite } from '@/lib/utils';
+import { listenSwipes } from '@/lib/firebaseRoom';
 import Image from 'next/image';
 
 interface ResultsScreenProps {
   room: Room;
   currentUser: User;
+  roomId: string;
 }
 
-export default function ResultsScreen({ room, currentUser }: ResultsScreenProps) {
+export default function ResultsScreen({ room, currentUser, roomId }: ResultsScreenProps) {
   const [matches, setMatches] = useState<RestaurantMatch[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
-    // In a real app, this would come from Firestore
-    // For now, we'll simulate some swipe data
-    const mockSwipes = [
-      { roomId: room.id, userId: currentUser.id, restaurantId: '1', action: 'like' as const, timestamp: new Date() },
-      { roomId: room.id, userId: currentUser.id, restaurantId: '2', action: 'superlike' as const, timestamp: new Date() },
-      { roomId: room.id, userId: currentUser.id, restaurantId: '3', action: 'like' as const, timestamp: new Date() },
-    ];
+    // Listen to real-time swipes from Firestore
+    const unsubscribe = listenSwipes(roomId, (swipes) => {
+      const allMatches = calculateMatches(MOCK_RESTAURANTS, swipes);
+      const topMatches = getTopMatches(allMatches, room.type);
+      setMatches(topMatches);
+    });
 
-    const allMatches = calculateMatches(MOCK_RESTAURANTS, mockSwipes);
-    const topMatches = getTopMatches(allMatches, room.type);
-    setMatches(topMatches);
-  }, [room, currentUser]);
+    return () => unsubscribe();
+  }, [roomId, room.type]);
 
   const handleCopyAddress = async (address: string, restaurantName: string) => {
     const success = await copyToClipboard(address);
