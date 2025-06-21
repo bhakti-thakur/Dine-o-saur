@@ -34,11 +34,11 @@ export default function HomePage() {
           <div className="flex items-center justify-center mb-6">
             <Utensils className="w-12 h-12 text-orange-500 mr-3" />
             <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-              Dineosaur
+              Dine-o-saur
             </h1>
           </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Discover the perfect restaurant together. No login required, just swipe and decide where to eat with your group!
+            Discover the perfect restaurant together. <br/> No login required, just swipe and decide where to eat with your group!
           </p>
         </motion.div>
 
@@ -47,7 +47,7 @@ export default function HomePage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid md:grid-cols-3 gap-8 mb-16"
+          className="grid md:grid-cols-3 gap-8 mb-16 text-gray-400"
         >
           <div className="text-center p-6 bg-white rounded-2xl shadow-lg">
             <Users className="w-12 h-12 text-blue-500 mx-auto mb-4" />
@@ -73,7 +73,7 @@ export default function HomePage() {
           transition={{ delay: 0.4 }}
           className="max-w-2xl mx-auto"
         >
-          <h2 className="text-3xl font-bold text-center mb-8">Start a Room</h2>
+          <h2 className="text-3xl font-bold text-gray-400 text-center mb-8">Start a Room</h2>
           
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {ROOM_TYPES.map((type) => (
@@ -82,7 +82,7 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedType(type.id)}
-                className={`p-6 rounded-2xl border-2 transition-all ${
+                className={`p-6 rounded-2xl text-gray-400 border transition-all ${
                   selectedType === type.id
                     ? 'border-orange-500 bg-orange-50 shadow-lg'
                     : 'border-gray-200 bg-white hover:border-orange-300'
