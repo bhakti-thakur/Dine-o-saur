@@ -5,6 +5,7 @@ export interface Room {
   expiresAt: Date;
   users: User[];
   isActive: boolean;
+  stage: 'waiting' | 'preferences' | 'swiping' | 'results';
 }
 
 export interface User {
