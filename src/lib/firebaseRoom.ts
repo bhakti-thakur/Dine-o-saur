@@ -10,6 +10,9 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { Room, User, SwipeAction } from './types';
+import { getApps } from 'firebase/app';
+
+console.log(getApps());
 
 // Room document reference
 export function roomRef(roomId: string) {
@@ -28,27 +31,61 @@ export function swipesRef(roomId: string) {
 
 // Create a new room
 export async function createRoom(room: Room) {
-  await setDoc(roomRef(room.id), {
+  const payload = {
     ...room,
     createdAt: serverTimestamp(),
     expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     stage: 'waiting',
-  });
+  };
+  try {
+    await setDoc(roomRef(room.id), payload);
+  } catch (error) {
+    console.error("Error creating room:", error);
+    throw error;
+  }
 }
 
 // Add or update a user in a room
 export async function upsertUser(roomId: string, user: User) {
-  await setDoc(userRef(roomId, user.id), {
-    ...user,
-    joinedAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(userRef(roomId, user.id), {
+      ...user,
+      joinedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error upserting user:", error);
+    throw error;
+  }
 }
 
 // Listen to room changes in real time
 export function listenRoom(roomId: string, cb: (room: Room | null) => void) {
-  return onSnapshot(roomRef(roomId), (doc) => {
-    cb(doc.exists() ? doc.data() as Room : null);
-  });
+  if (!roomId) {
+    console.warn("listenRoom: Invalid roomId");
+    return () => {};
+  }
+  try {
+    return onSnapshot(
+      roomRef(roomId),
+      (doc) => {
+        if (!doc.exists()) {
+          console.warn("listenRoom: Room document does not exist for roomId:", roomId);
+          cb(null);
+        } else {
+          const data = doc.data();
+          console.log("listenRoom: Room data received:", data);
+          cb(data as Room);
+        }
+      },
+      (error) => {
+        console.error("listenRoom Firestore error:", error);
+        cb(null);
+      }
+    );
+  } catch (error) {
+    console.error("listenRoom setup error:", error);
+    return () => {};
+  }
 }
 
 // Listen to users in a room in real time
