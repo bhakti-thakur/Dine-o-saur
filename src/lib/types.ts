@@ -1,3 +1,5 @@
+import { RestaurantMatch } from './types';
+
 export interface Room {
   id: string;
   type: 'couple' | 'group';
@@ -8,7 +10,7 @@ export interface Room {
   stage: 'waiting' | 'preferences' | 'swiping' | 'results';
   expectedUsers?: number;
   swipeDeadline?: string;
-  results?: any[];
+  results?: RestaurantMatch[];
 }
 
 export interface User {
