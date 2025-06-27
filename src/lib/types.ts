@@ -1,5 +1,3 @@
-import { RestaurantMatch } from './types';
-
 export interface Room {
   id: string;
   type: 'couple' | 'group';
