@@ -7,6 +7,7 @@ export interface Room {
   isActive: boolean;
   stage: 'waiting' | 'preferences' | 'swiping' | 'results';
   expectedUsers?: number;
+  swipeDeadline?: string;
 }
 
 export interface User {

@@ -149,7 +149,14 @@ export default function RoomPage() {
     if (stage === 'preferences') {
       const allDone = users.every(u => u.preferences && u.preferences.length >= 3);
       if (allDone) {
-        updateRoomStage(roomId, 'swiping');
+        // Set swipeDeadline to now + 5 minutes
+        const swipeDeadline = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        import('@/lib/firebaseRoom').then(({ updateRoomStage }) => {
+          updateRoomStage(roomId, 'swiping');
+        });
+        import('firebase/firestore').then(({ updateDoc }) => {
+          updateDoc(roomRef(roomId), { swipeDeadline });
+        });
       }
     }
   }, [stage, users, room, roomId]);

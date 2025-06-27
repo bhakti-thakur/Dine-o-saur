@@ -16,10 +16,19 @@ interface SwipeScreenProps {
   userId: string;
 }
 
+function formatCountdown(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeScreenProps) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [countdown, setCountdown] = useState<number>(0);
+  const [timerExpired, setTimerExpired] = useState(false);
 
   useEffect(() => {
     // Filter restaurants based on all users' preferences
@@ -27,6 +36,32 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
     const filteredRestaurants = filterRestaurantsByPreferences(MOCK_RESTAURANTS, allPreferences);
     setRestaurants(filteredRestaurants);
   }, [room]);
+
+  // Countdown timer logic
+  useEffect(() => {
+    if (!room.swipeDeadline) return;
+    const deadline = new Date(room.swipeDeadline).getTime();
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const msLeft = deadline - now;
+      setCountdown(msLeft);
+      if (msLeft <= 0) {
+        setTimerExpired(true);
+        clearInterval(interval);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [room.swipeDeadline]);
+
+  // Auto-complete swiping when timer expires
+  useEffect(() => {
+    if (timerExpired) {
+      (async () => {
+        await markUserDone(roomId, userId);
+        onComplete();
+      })();
+    }
+  }, [timerExpired, roomId, userId, onComplete]);
 
   const handleSwipe = async (action: 'like' | 'skip' | 'superlike') => {
     if (currentIndex >= restaurants.length) return;
@@ -95,6 +130,15 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
 
   return (
     <div className="max-w-md mx-auto">
+      {/* Countdown Timer */}
+      {room.swipeDeadline && (
+        <div className="mb-4 text-center">
+          <span className="inline-block bg-orange-100 text-orange-700 px-4 py-2 rounded-full font-semibold text-lg">
+            You have {formatCountdown(countdown)} left to swipe!
+          </span>
+        </div>
+      )}
+
       {/* Progress Bar */}
       <div className="mb-6">
         <div className="flex justify-between text-sm text-gray-600 mb-2">
