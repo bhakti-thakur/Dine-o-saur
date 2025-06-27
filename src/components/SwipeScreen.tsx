@@ -29,6 +29,7 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState<number>(0);
   const [timerExpired, setTimerExpired] = useState(false);
+  const [localSwipes, setLocalSwipes] = useState<{ restaurantId: string; action: 'like' | 'skip' | 'superlike' }[]>([]);
 
   useEffect(() => {
     // Filter restaurants based on all users' preferences
@@ -57,30 +58,43 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
   useEffect(() => {
     if (timerExpired) {
       (async () => {
+        await submitAllSwipes();
         await markUserDone(roomId, userId);
         onComplete();
       })();
     }
   }, [timerExpired, roomId, userId, onComplete]);
 
-  const handleSwipe = async (action: 'like' | 'skip' | 'superlike') => {
+  const handleSwipe = (action: 'like' | 'skip' | 'superlike') => {
     if (currentIndex >= restaurants.length) return;
     const currentRestaurant = restaurants[currentIndex];
-    await addSwipe(roomId, {
-      roomId,
-      userId,
-      restaurantId: currentRestaurant.id,
-      action,
-      timestamp: new Date()
-    });
+    setLocalSwipes(prev => [...prev, { restaurantId: currentRestaurant.id, action }]);
     setCurrentIndex(prev => prev + 1);
     // Check if we've swiped through all restaurants
     if (currentIndex + 1 >= restaurants.length) {
-      await markUserDone(roomId, userId);
-      setTimeout(() => {
-        onComplete();
-      }, 500);
+      (async () => {
+        await submitAllSwipes();
+        await markUserDone(roomId, userId);
+        setTimeout(() => {
+          onComplete();
+        }, 500);
+      })();
     }
+  };
+
+  // Submit all swipes in one batch
+  const submitAllSwipes = async () => {
+    if (localSwipes.length === 0) return;
+    // You can use setDoc or batch.set here. For simplicity, we'll use setDoc with userId as the doc id
+    const { setDoc, doc, collection } = await import('firebase/firestore');
+    const swipesCollection = collection(require('@/lib/firebase').db, 'rooms', roomId, 'swipes');
+    await setDoc(doc(swipesCollection, userId), {
+      roomId,
+      userId,
+      swipes: localSwipes,
+      timestamp: new Date()
+    });
+    setLocalSwipes([]);
   };
 
   const handleDragEnd = (_event: unknown, info: PanInfo) => {

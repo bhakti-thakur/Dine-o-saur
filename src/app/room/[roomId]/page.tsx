@@ -14,7 +14,6 @@ import {
   createRoom,
   upsertUser,
   listenRoom,
-  listenUsers,
   updateRoomStage,
   markUserDone,
   removeUser,
@@ -32,7 +31,6 @@ export default function RoomPage() {
   
   const [stage, setStage] = useState<RoomStage>('waiting');
   const [room, setRoom] = useState<Room | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -46,11 +44,8 @@ export default function RoomPage() {
         setStage(roomData.stage || 'waiting');
       }
     });
-    // Listen to users in room
-    const unsubUsers = listenUsers(roomId, setUsers);
     return () => {
       unsubRoom();
-      unsubUsers();
     };
   }, [roomId]);
 
@@ -136,22 +131,22 @@ export default function RoomPage() {
   // --- Progression Logic ---
   // 1. Waiting: Advance to preferences when all users have joined (2 for couple, expectedUsers for group)
   useEffect(() => {
-    if (!room || !users.length) return;
+    if (!room || !room.users.length) return;
     if (stage === 'waiting') {
       if (
-        (room.type === 'couple' && users.length === 2) ||
-        (room.type === 'group' && room.expectedUsers && users.length === room.expectedUsers)
+        (room.type === 'couple' && room.users.length === 2) ||
+        (room.type === 'group' && room.expectedUsers && room.users.length === room.expectedUsers)
       ) {
         updateRoomStage(roomId, 'preferences');
       }
     }
-  }, [stage, users, room, roomId]);
+  }, [stage, room, roomId]);
 
   // 2. Preferences: Advance to swiping when all users have selected preferences
   useEffect(() => {
-    if (!room || !users.length) return;
+    if (!room || !room.users.length) return;
     if (stage === 'preferences') {
-      const allDone = users.every(u => u.preferences && u.preferences.length >= 3);
+      const allDone = room.users.every(u => u.preferences && u.preferences.length >= 3);
       if (allDone) {
         // Set swipeDeadline to now + 5 minutes
         const swipeDeadline = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -163,18 +158,18 @@ export default function RoomPage() {
         });
       }
     }
-  }, [stage, users, room, roomId]);
+  }, [stage, room, roomId]);
 
   // 3. Swiping: Advance to results when all users are done swiping
   useEffect(() => {
-    if (!room || !users.length) return;
+    if (!room || !room.users.length) return;
     if (stage === 'swiping') {
-      const allDone = users.length === (room.expectedUsers || 2) && users.every(u => u.isDoneSwiping);
+      const allDone = room.users.length === (room.expectedUsers || 2) && room.users.every(u => u.isDoneSwiping);
       if (allDone) {
         updateRoomStage(roomId, 'results');
       }
     }
-  }, [stage, users, room, roomId]);
+  }, [stage, room, roomId]);
 
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/room/${roomId}`;
@@ -229,7 +224,7 @@ export default function RoomPage() {
               <div>
                 <h1 className="text-xl font-bold text-gray-800">Room {roomId}</h1>
                 <p className="text-sm text-gray-600">
-                  {room.type === 'couple' ? 'Couple' : 'Group'} • {users.length} users
+                  {room.type === 'couple' ? 'Couple' : 'Group'} • {room.users.length} users
                 </p>
               </div>
             </div>

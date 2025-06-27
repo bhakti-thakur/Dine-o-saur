@@ -88,20 +88,6 @@ export function listenRoom(roomId: string, cb: (room: Room | null) => void) {
   }
 }
 
-// Listen to users in a room in real time
-export function listenUsers(roomId: string, cb: (users: User[]) => void) {
-  return onSnapshot(collection(db, 'rooms', roomId, 'users'), (snap) => {
-    cb(snap.docs.map(d => d.data() as User));
-  });
-}
-
-// Listen to swipes in a room in real time
-export function listenSwipes(roomId: string, cb: (swipes: SwipeAction[]) => void) {
-  return onSnapshot(swipesRef(roomId), (snap) => {
-    cb(snap.docs.map(d => d.data() as SwipeAction));
-  });
-}
-
 // Update room stage
 export async function updateRoomStage(roomId: string, stage: string) {
   await updateDoc(roomRef(roomId), { stage });
@@ -110,11 +96,6 @@ export async function updateRoomStage(roomId: string, stage: string) {
 // Mark user as done swiping
 export async function markUserDone(roomId: string, userId: string) {
   await updateDoc(userRef(roomId, userId), { isDoneSwiping: true });
-}
-
-// Add a swipe action
-export async function addSwipe(roomId: string, swipe: SwipeAction) {
-  await addDoc(swipesRef(roomId), { ...swipe, timestamp: serverTimestamp() });
 }
 
 // Remove a user from a room
