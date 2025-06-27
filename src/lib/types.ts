@@ -6,6 +6,7 @@ export interface Room {
   users: User[];
   isActive: boolean;
   stage: 'waiting' | 'preferences' | 'swiping' | 'results';
+  expectedUsers?: number;
 }
 
 export interface User {

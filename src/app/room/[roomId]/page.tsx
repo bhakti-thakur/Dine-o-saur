@@ -17,7 +17,8 @@ import {
   listenUsers,
   updateRoomStage,
   markUserDone,
-  removeUser
+  removeUser,
+  roomRef
 } from '@/lib/firebaseRoom';
 
 type RoomStage = 'waiting' | 'preferences' | 'swiping' | 'results';
@@ -27,6 +28,7 @@ export default function RoomPage() {
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
   const roomType = searchParams.get('type') as 'couple' | 'group';
+  const expectedUsers = Number(searchParams.get('expectedUsers')) || 2;
   
   const [stage, setStage] = useState<RoomStage>('waiting');
   const [room, setRoom] = useState<Room | null>(null);
@@ -71,30 +73,71 @@ export default function RoomPage() {
       localStorage.setItem('dineosaur_user', JSON.stringify(user));
     }
     setCurrentUser(user);
-    // Create room if not exists
-    createRoom({
-      id: roomId,
-      type: roomType || 'group',
-      createdAt: new Date(),
-      expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
-      users: [],
-      isActive: true,
-      stage: 'waiting',
-    }).catch(() => {});
-    // Add user to Firestore
-    upsertUser(roomId, user);
-    // Remove user on unload
-    const cleanup = () => removeUser(roomId, user.id);
-    window.addEventListener('beforeunload', cleanup);
-    return () => window.removeEventListener('beforeunload', cleanup);
-  }, [roomId, roomType]);
+    // Prevent more than 2 users in a couple room
+    listenRoom(roomId, (roomData) => {
+      const now = new Date();
+      if (roomData) {
+        // Prevent access if room is expired or inactive
+        if (
+          roomData.isActive === false ||
+          (roomData.expiresAt && new Date(roomData.expiresAt) < now)
+        ) {
+          alert('This room is expired. Please create a new one.');
+          window.location.href = '/';
+          return;
+        }
+        // Expire room if only 1 user is present for more than 15 minutes
+        if (
+          roomData.users &&
+          roomData.users.length === 1 &&
+          roomData.createdAt &&
+          (now.getTime() - new Date(roomData.createdAt).getTime()) > 15 * 60 * 1000
+        ) {
+          import('@/lib/firebaseRoom').then(({ updateRoomStage }) => {
+            updateRoomStage(roomId, 'waiting'); // keep stage for clarity
+          });
+          import('firebase/firestore').then(({ updateDoc }) => {
+            updateDoc(roomRef(roomId), { isActive: false });
+          });
+          alert('This room expired due to inactivity. Please create a new one.');
+          window.location.href = '/';
+          return;
+        }
+        if (roomData.type === 'couple' && roomData.users && roomData.users.length >= 2) {
+          alert('This couple room is full. Only 2 people can join.');
+          window.location.href = '/';
+          return;
+        }
+      }
+      // Create room if not exists
+      createRoom({
+        id: roomId,
+        type: roomType || 'group',
+        createdAt: new Date(),
+        expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
+        users: [],
+        isActive: true,
+        stage: 'waiting',
+        expectedUsers: roomType === 'group' ? expectedUsers : 2,
+      }).catch(() => {});
+      // Add user to Firestore
+      upsertUser(roomId, user);
+      // Remove user on unload
+      const cleanup = () => removeUser(roomId, user.id);
+      window.addEventListener('beforeunload', cleanup);
+      return () => window.removeEventListener('beforeunload', cleanup);
+    });
+  }, [roomId, roomType, expectedUsers]);
 
   // --- Progression Logic ---
-  // 1. Waiting: Advance to preferences when all users have joined (2 for couple, up to 8 for group)
+  // 1. Waiting: Advance to preferences when all users have joined (2 for couple, expectedUsers for group)
   useEffect(() => {
     if (!room || !users.length) return;
     if (stage === 'waiting') {
-      if ((room.type === 'couple' && users.length === 2) || (room.type === 'group' && users.length >= 2)) {
+      if (
+        (room.type === 'couple' && users.length === 2) ||
+        (room.type === 'group' && room.expectedUsers && users.length === room.expectedUsers)
+      ) {
         updateRoomStage(roomId, 'preferences');
       }
     }
@@ -115,7 +158,7 @@ export default function RoomPage() {
   useEffect(() => {
     if (!room || !users.length) return;
     if (stage === 'swiping') {
-      const allDone = users.every(u => u.isDoneSwiping);
+      const allDone = users.length === (room.expectedUsers || 2) && users.every(u => u.isDoneSwiping);
       if (allDone) {
         updateRoomStage(roomId, 'results');
       }
