@@ -83,7 +83,7 @@ export default function RoomPage() {
           (roomData.expiresAt && new Date(roomData.expiresAt) < now)
         ) {
           if (roomData.results && roomData.results.length > 0) {
-            alert('This room is expired. Here were your results:\n' + roomData.results.map((r: any, i: number) => `${i + 1}. ${r.restaurant.name}`).join('\n'));
+            alert('This room is expired. Here were your results:\n' + roomData.results.map((r: import('@/lib/types').RestaurantMatch, i: number) => `${i + 1}. ${r.restaurant.name}`).join('\n'));
           } else {
             alert('This room is expired. Please create a new one.');
           }
