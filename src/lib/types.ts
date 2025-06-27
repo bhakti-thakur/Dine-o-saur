@@ -8,6 +8,7 @@ export interface Room {
   stage: 'waiting' | 'preferences' | 'swiping' | 'results';
   expectedUsers?: number;
   swipeDeadline?: string;
+  results?: any[];
 }
 
 export interface User {
