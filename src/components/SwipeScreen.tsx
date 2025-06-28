@@ -7,13 +7,14 @@ import { Room, Restaurant } from '@/lib/types';
 import { MOCK_RESTAURANTS } from '@/lib/constants';
 import { filterRestaurantsByPreferences, formatRating, copyToClipboard, openInMaps, openWebsite } from '@/lib/utils';
 import Image from 'next/image';
-import { addSwipe, markUserDone } from '@/lib/firebaseRoom';
+import { markUserDone } from '@/lib/firebaseRoom';
 
 interface SwipeScreenProps {
   room: Room;
   onComplete: () => void;
   roomId: string;
   userId: string;
+  restaurants: Restaurant[];
 }
 
 function formatCountdown(ms: number) {
@@ -23,20 +24,50 @@ function formatCountdown(ms: number) {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeScreenProps) {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+export default function SwipeScreen({ room, onComplete, roomId, userId, restaurants }: SwipeScreenProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState<number>(0);
   const [timerExpired, setTimerExpired] = useState(false);
   const [localSwipes, setLocalSwipes] = useState<{ restaurantId: string; action: 'like' | 'skip' | 'superlike' }[]>([]);
+  const [scoredRestaurants, setScoredRestaurants] = useState<Restaurant[]>([]);
 
+  // Score and sort restaurants for the current user
   useEffect(() => {
-    // Filter restaurants based on all users' preferences
-    const allPreferences = room.users.flatMap(user => user.preferences);
-    const filteredRestaurants = filterRestaurantsByPreferences(MOCK_RESTAURANTS, allPreferences);
-    setRestaurants(filteredRestaurants);
-  }, [room]);
+    if (!restaurants || !room || !userId) return;
+    const user = room.users.find(u => u.id === userId);
+    if (!user) return;
+    // Scoring: +1 for each matching tag, +1-3 for proximity (if available)
+    function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
+      const R = 6371; // km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+    const userLoc = user.location;
+    const scored = restaurants.map(r => {
+      let score = 0;
+      user.preferences.forEach(tag => {
+        if (r.tags && r.tags.includes(tag)) score += 1;
+      });
+      // Distance score
+      if (userLoc && r.lat && r.lng) {
+        const dist = haversine(userLoc.lat, userLoc.lng, r.lat, r.lng);
+        if (dist < 1) score += 3;
+        else if (dist < 3) score += 2;
+        else if (dist < 8) score += 1;
+      }
+      // Optionally: boost for rating
+      if (r.rating && r.rating >= 4.5) score += 1;
+      return { ...r, _score: score };
+    });
+    scored.sort((a, b) => b._score - a._score);
+    setScoredRestaurants(scored.slice(0, 30));
+  }, [restaurants, room, userId]);
 
   // Countdown timer logic
   useEffect(() => {
@@ -66,12 +97,12 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
   }, [timerExpired, roomId, userId, onComplete]);
 
   const handleSwipe = (action: 'like' | 'skip' | 'superlike') => {
-    if (currentIndex >= restaurants.length) return;
-    const currentRestaurant = restaurants[currentIndex];
+    if (currentIndex >= scoredRestaurants.length) return;
+    const currentRestaurant = scoredRestaurants[currentIndex];
     setLocalSwipes(prev => [...prev, { restaurantId: currentRestaurant.id, action }]);
     setCurrentIndex(prev => prev + 1);
     // Check if we've swiped through all restaurants
-    if (currentIndex + 1 >= restaurants.length) {
+    if (currentIndex + 1 >= scoredRestaurants.length) {
       (async () => {
         await submitAllSwipes();
         await markUserDone(roomId, userId);
@@ -114,7 +145,7 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
     }
   };
 
-  if (restaurants.length === 0) {
+  if (scoredRestaurants.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -123,7 +154,7 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
     );
   }
 
-  if (currentIndex >= restaurants.length) {
+  if (currentIndex >= scoredRestaurants.length) {
     return (
       <div className="text-center py-16">
         <motion.div
@@ -139,8 +170,8 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
     );
   }
 
-  const currentRestaurant = restaurants[currentIndex];
-  const progress = ((currentIndex + 1) / restaurants.length) * 100;
+  const currentRestaurant = scoredRestaurants[currentIndex];
+  const progress = ((currentIndex + 1) / scoredRestaurants.length) * 100;
 
   return (
     <div className="max-w-md mx-auto">
@@ -156,7 +187,7 @@ export default function SwipeScreen({ room, onComplete, roomId, userId }: SwipeS
       {/* Progress Bar */}
       <div className="mb-6">
         <div className="flex justify-between text-sm text-gray-600 mb-2">
-          <span>Restaurant {currentIndex + 1} of {restaurants.length}</span>
+          <span>Restaurant {currentIndex + 1} of {scoredRestaurants.length}</span>
           <span>{Math.round(progress)}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">

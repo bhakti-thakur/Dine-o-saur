@@ -7,7 +7,9 @@ import {
   onSnapshot,
   addDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  getDoc,
+  getFirestore
 } from 'firebase/firestore';
 import { Room, User, SwipeAction } from './types';
 import { getApps } from 'firebase/app';
@@ -101,4 +103,45 @@ export async function markUserDone(roomId: string, userId: string) {
 // Remove a user from a room
 export async function removeUser(roomId: string, userId: string) {
   await deleteDoc(userRef(roomId, userId));
+}
+
+// Fetch and cache restaurants for a room using Google Places API
+export async function fetchAndCacheRestaurants(roomId: string, location: { lat: number; lng: number }, tags: string[]) {
+  const db = getFirestore();
+  const restaurantsRef = doc(db, 'rooms', roomId, 'restaurants', 'list');
+  const docSnap = await getDoc(restaurantsRef);
+  const now = Date.now();
+  // If already fetched within 5 minutes, return cached data
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    if (data.fetchedAt && now - data.fetchedAt.toMillis() < 5 * 60 * 1000) {
+      return data.restaurants;
+    }
+  }
+  // Build Google Places API URL
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
+  const radius = 8000; // 8km
+  const keyword = tags.join(',');
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&type=restaurant&keyword=${encodeURIComponent(keyword)}&key=${apiKey}`;
+  const response = await fetch(url);
+  const result = await response.json();
+  const restaurants = (result.results || []).map((r: any) => ({
+    id: r.place_id,
+    name: r.name,
+    image: r.photos && r.photos.length > 0 ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${r.photos[0].photo_reference}&key=${apiKey}` : '',
+    rating: r.rating,
+    cuisine: '', // Google Places does not provide cuisine directly
+    address: r.vicinity,
+    website: r.website || '',
+    priceRange: '', // Not available from Places API
+    tags: tags.filter(tag => r.name.toLowerCase().includes(tag.toLowerCase()) || (r.types && r.types.includes(tag.toLowerCase()))),
+    lat: r.geometry && r.geometry.location ? r.geometry.location.lat : undefined,
+    lng: r.geometry && r.geometry.location ? r.geometry.location.lng : undefined,
+  }));
+  // Cache in Firestore
+  await setDoc(restaurantsRef, {
+    restaurants,
+    fetchedAt: serverTimestamp(),
+  });
+  return restaurants;
 } 

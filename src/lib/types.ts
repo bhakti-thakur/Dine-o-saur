@@ -17,6 +17,7 @@ export interface User {
   preferences: string[];
   isDoneSwiping: boolean;
   joinedAt: Date;
+  location?: { lat: number; lng: number };
 }
 
 export interface Restaurant {
@@ -29,6 +30,8 @@ export interface Restaurant {
   website?: string;
   priceRange: string;
   tags: string[];
+  lat?: number;
+  lng?: number;
 }
 
 export interface SwipeAction {

@@ -17,7 +17,8 @@ import {
   updateRoomStage,
   markUserDone,
   removeUser,
-  roomRef
+  roomRef,
+  fetchAndCacheRestaurants
 } from '@/lib/firebaseRoom';
 
 type RoomStage = 'waiting' | 'preferences' | 'swiping' | 'results';
@@ -33,6 +34,8 @@ export default function RoomPage() {
   const [room, setRoom] = useState<Room | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [restaurants, setRestaurants] = useState([]);
 
   // --- Firestore Real-Time Listeners ---
   useEffect(() => {
@@ -69,63 +72,24 @@ export default function RoomPage() {
     }
     setCurrentUser(user);
     // Prevent more than 2 users in a couple room
-    listenRoom(roomId, (roomData) => {
-      const now = new Date();
-      if (roomData) {
-        // Prevent access if room is expired or inactive
-        if (
-          roomData.isActive === false ||
-          (roomData.expiresAt && new Date(roomData.expiresAt) < now)
-        ) {
-          if (roomData.results && roomData.results.length > 0) {
-            alert('This room is expired. Here were your results:\n' + roomData.results.map((r: import('@/lib/types').RestaurantMatch, i: number) => `${i + 1}. ${r.restaurant.name}`).join('\n'));
-          } else {
-            alert('This room is expired. Please create a new one.');
-          }
-          window.location.href = '/';
-          return;
-        }
-        // Expire room if only 1 user is present for more than 15 minutes
-        if (
-          roomData.users &&
-          roomData.users.length === 1 &&
-          roomData.createdAt &&
-          (now.getTime() - new Date(roomData.createdAt).getTime()) > 15 * 60 * 1000
-        ) {
-          import('@/lib/firebaseRoom').then(({ updateRoomStage }) => {
-            updateRoomStage(roomId, 'waiting'); // keep stage for clarity
-          });
-          import('firebase/firestore').then(({ updateDoc }) => {
-            updateDoc(roomRef(roomId), { isActive: false });
-          });
-          alert('This room expired due to inactivity. Please create a new one.');
-          window.location.href = '/';
-          return;
-        }
-        if (roomData.type === 'couple' && roomData.users && roomData.users.length >= 2) {
-          alert('This couple room is full. Only 2 people can join.');
-          window.location.href = '/';
-          return;
-        }
-      }
-      // Create room if not exists
-      createRoom({
-        id: roomId,
-        type: roomType || 'group',
-        createdAt: new Date(),
-        expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
-        users: [],
-        isActive: true,
-        stage: 'waiting',
-        expectedUsers: roomType === 'group' ? expectedUsers : 2,
-      }).catch(() => {});
-      // Add user to Firestore
-      upsertUser(roomId, user);
-      // Remove user on unload
-      const cleanup = () => removeUser(roomId, user.id);
-      window.addEventListener('beforeunload', cleanup);
-      return () => window.removeEventListener('beforeunload', cleanup);
-    });
+    // (Removed duplicate listenRoom here)
+    // Create room if not exists
+    createRoom({
+      id: roomId,
+      type: roomType || 'group',
+      createdAt: new Date(),
+      expiresAt: calculateExpiryTime(ROOM_EXPIRY_MINUTES),
+      users: [],
+      isActive: true,
+      stage: 'waiting',
+      expectedUsers: roomType === 'group' ? expectedUsers : 2,
+    }).catch(() => {});
+    // Add user to Firestore
+    upsertUser(roomId, user);
+    // Remove user on unload
+    const cleanup = () => removeUser(roomId, user.id);
+    window.addEventListener('beforeunload', cleanup);
+    return () => window.removeEventListener('beforeunload', cleanup);
   }, [roomId, roomType, expectedUsers]);
 
   // --- Progression Logic ---
@@ -170,6 +134,45 @@ export default function RoomPage() {
       }
     }
   }, [stage, room, roomId]);
+
+  // Get user geolocation on mount
+  useEffect(() => {
+    if (!userLocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setUserLocation({ lat: latitude, lng: longitude });
+          // Optionally, store in Firestore under user
+          if (currentUser) {
+            upsertUser(roomId, { ...currentUser, location: { lat: latitude, lng: longitude } });
+          }
+        },
+        (err) => {
+          console.error('Geolocation error:', err);
+        }
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, currentUser]);
+
+  // Fetch and cache restaurants when entering swiping stage
+  useEffect(() => {
+    if (stage === 'swiping' && room && userLocation) {
+      // Use sessionStorage to avoid redundant fetches in the same session
+      const cacheKey = `dineosaur_restaurants_${roomId}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        setRestaurants(JSON.parse(cached));
+        return;
+      }
+      // Gather all user tags (preferences)
+      const allTags = Array.from(new Set(room.users.flatMap(u => u.preferences)));
+      fetchAndCacheRestaurants(roomId, userLocation, allTags).then((data) => {
+        setRestaurants(data);
+        sessionStorage.setItem(cacheKey, JSON.stringify(data));
+      });
+    }
+  }, [stage, room, userLocation, roomId]);
 
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/room/${roomId}`;
@@ -287,6 +290,7 @@ export default function RoomPage() {
             onComplete={handleSwipingComplete}
             roomId={roomId}
             userId={currentUser.id}
+            restaurants={restaurants}
           />
         )}
 
