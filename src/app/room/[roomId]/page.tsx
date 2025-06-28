@@ -14,6 +14,7 @@ import {
   createRoom,
   upsertUser,
   listenRoom,
+  listenRoomWithUsers,
   updateRoomStage,
   markUserDone,
   removeUser,
@@ -40,10 +41,20 @@ export default function RoomPage() {
   // --- Firestore Real-Time Listeners ---
   useEffect(() => {
     if (!roomId) return;
-    // Listen to room document
-    const unsubRoom = listenRoom(roomId, (roomData) => {
+    // Listen to room document and users
+    const unsubRoom = listenRoomWithUsers(roomId, (roomData, users) => {
       if (roomData) {
-        setRoom(roomData as Room);
+        const roomWithUsers = {
+          ...roomData,
+          users: users
+        };
+        console.log("RoomPage: Room state updated", { 
+          roomId, 
+          stage: roomData.stage, 
+          userCount: users.length,
+          users: users.map(u => ({ id: u.id, name: u.name }))
+        });
+        setRoom(roomWithUsers as Room);
         setStage(roomData.stage || 'waiting');
       }
     });
@@ -55,11 +66,14 @@ export default function RoomPage() {
   // --- On Mount: Create/Join Room and User ---
   useEffect(() => {
     if (!roomId) return;
+    console.log("RoomPage: Initializing room", { roomId, roomType, expectedUsers });
+    
     // Generate or get user from localStorage
     let user = null;
     const stored = localStorage.getItem('dineosaur_user');
     if (stored) {
       user = JSON.parse(stored);
+      console.log("RoomPage: Found existing user", { userId: user.id, userName: user.name });
     } else {
       user = {
         id: generateUserId(),
@@ -69,10 +83,10 @@ export default function RoomPage() {
         joinedAt: new Date()
       };
       localStorage.setItem('dineosaur_user', JSON.stringify(user));
+      console.log("RoomPage: Created new user", { userId: user.id, userName: user.name });
     }
     setCurrentUser(user);
-    // Prevent more than 2 users in a couple room
-    // (Removed duplicate listenRoom here)
+    
     // Create room if not exists
     createRoom({
       id: roomId,
@@ -83,9 +97,15 @@ export default function RoomPage() {
       isActive: true,
       stage: 'waiting',
       expectedUsers: roomType === 'group' ? expectedUsers : 2,
-    }).catch(() => {});
+    }).catch((error) => {
+      console.error("RoomPage: Error creating room", error);
+    });
+    
     // Add user to Firestore
-    upsertUser(roomId, user);
+    upsertUser(roomId, user).catch((error) => {
+      console.error("RoomPage: Error adding user to room", error);
+    });
+    
     // Remove user on unload
     const cleanup = () => removeUser(roomId, user.id);
     window.addEventListener('beforeunload', cleanup);
