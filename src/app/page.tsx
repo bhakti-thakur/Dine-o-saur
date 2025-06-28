@@ -9,17 +9,13 @@ import { generateRoomId } from '@/lib/utils';
 
 export default function HomePage() {
   const [selectedType, setSelectedType] = useState<string>('');
-  const [groupSize, setGroupSize] = useState<number>(2);
   const router = useRouter();
 
   const handleCreateRoom = () => {
     if (!selectedType) return;
+    
     const roomId = generateRoomId();
-    if (selectedType === 'group') {
-      router.push(`/room/${roomId}?type=group&expectedUsers=${groupSize}`);
-    } else {
-      router.push(`/room/${roomId}?type=${selectedType}`);
-    }
+    router.push(`/room/${roomId}?type=${selectedType}`);
   };
 
   const handleJoinRoom = () => {
@@ -77,7 +73,7 @@ export default function HomePage() {
           transition={{ delay: 0.4 }}
           className="max-w-2xl mx-auto"
         >
-          <h2 className="text-3xl font-bold text-center mb-8">Start a Room</h2>
+          <h2 className="text-3xl font-bold text-gray-400 text-center mb-8">Start a Room</h2>
           
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {ROOM_TYPES.map((type) => (
@@ -86,7 +82,7 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedType(type.id)}
-                className={`p-6 rounded-2xl border-2 transition-all ${
+                className={`p-6 rounded-2xl text-gray-400 border transition-all ${
                   selectedType === type.id
                     ? 'border-orange-500 bg-orange-50 shadow-lg'
                     : 'border-gray-200 bg-white hover:border-orange-300'
@@ -99,27 +95,11 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Group size input */}
-          {selectedType === 'group' && (
-            <div className="mb-8 text-center">
-              <label className="block text-lg font-medium mb-2">How many people in your group?</label>
-              <input
-                type="number"
-                min={2}
-                max={8}
-                value={groupSize}
-                onChange={e => setGroupSize(Math.max(2, Math.min(8, Number(e.target.value))))}
-                className="w-24 px-4 py-2 rounded-xl border-2 border-orange-300 text-center text-lg font-bold"
-              />
-              <span className="ml-2 text-gray-600">(2–8)</span>
-            </div>
-          )}
-
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleCreateRoom}
-            disabled={!selectedType || (selectedType === 'group' && (groupSize < 2 || groupSize > 8))}
+            disabled={!selectedType}
             className={`w-full py-4 px-8 rounded-2xl font-semibold text-lg transition-all ${
               selectedType
                 ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg hover:shadow-xl'

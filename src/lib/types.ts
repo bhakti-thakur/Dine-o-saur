@@ -6,9 +6,6 @@ export interface Room {
   users: User[];
   isActive: boolean;
   stage: 'waiting' | 'preferences' | 'swiping' | 'results';
-  expectedUsers?: number;
-  swipeDeadline?: string;
-  results?: RestaurantMatch[];
 }
 
 export interface User {
@@ -17,7 +14,6 @@ export interface User {
   preferences: string[];
   isDoneSwiping: boolean;
   joinedAt: Date;
-  location?: { lat: number; lng: number };
 }
 
 export interface Restaurant {
@@ -30,8 +26,6 @@ export interface Restaurant {
   website?: string;
   priceRange: string;
   tags: string[];
-  lat?: number;
-  lng?: number;
 }
 
 export interface SwipeAction {

@@ -6,9 +6,8 @@ import { Trophy, MapPin, Globe, Copy, Check, Star, Heart } from 'lucide-react';
 import { Room, RestaurantMatch } from '@/lib/types';
 import { MOCK_RESTAURANTS } from '@/lib/constants';
 import { calculateMatches, getTopMatches, copyToClipboard, openInMaps, openWebsite } from '@/lib/utils';
-import { listenSwipes, roomRef } from '@/lib/firebaseRoom';
+import { listenSwipes } from '@/lib/firebaseRoom';
 import Image from 'next/image';
-import { updateDoc } from 'firebase/firestore';
 
 interface ResultsScreenProps {
   room: Room;
@@ -25,13 +24,10 @@ export default function ResultsScreen({ room, roomId }: ResultsScreenProps) {
       const allMatches = calculateMatches(MOCK_RESTAURANTS, swipes);
       const topMatches = getTopMatches(allMatches, room.type);
       setMatches(topMatches);
-      // Store results in Firestore if not already present
-      if (topMatches.length && (!room.results || room.results.length === 0)) {
-        updateDoc(roomRef(roomId), { results: topMatches, isActive: false });
-      }
     });
+
     return () => unsubscribe();
-  }, [roomId, room.type, room.results]);
+  }, [roomId, room.type]);
 
   const handleCopyAddress = async (address: string, restaurantName: string) => {
     const success = await copyToClipboard(address);

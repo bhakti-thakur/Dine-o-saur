@@ -14,12 +14,10 @@ import {
   createRoom,
   upsertUser,
   listenRoom,
-  listenRoomWithUsers,
+  listenUsers,
   updateRoomStage,
   markUserDone,
-  removeUser,
-  roomRef,
-  fetchAndCacheRestaurants
+  removeUser
 } from '@/lib/firebaseRoom';
 
 type RoomStage = 'waiting' | 'preferences' | 'swiping' | 'results';
@@ -29,51 +27,39 @@ export default function RoomPage() {
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
   const roomType = searchParams.get('type') as 'couple' | 'group';
-  const expectedUsers = Number(searchParams.get('expectedUsers')) || 2;
   
   const [stage, setStage] = useState<RoomStage>('waiting');
   const [room, setRoom] = useState<Room | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [restaurants, setRestaurants] = useState([]);
 
   // --- Firestore Real-Time Listeners ---
   useEffect(() => {
     if (!roomId) return;
-    // Listen to room document and users
-    const unsubRoom = listenRoomWithUsers(roomId, (roomData, users) => {
+    // Listen to room document
+    const unsubRoom = listenRoom(roomId, (roomData) => {
       if (roomData) {
-        const roomWithUsers = {
-          ...roomData,
-          users: users
-        };
-        console.log("RoomPage: Room state updated", { 
-          roomId, 
-          stage: roomData.stage, 
-          userCount: users.length,
-          users: users.map(u => ({ id: u.id, name: u.name }))
-        });
-        setRoom(roomWithUsers as Room);
+        setRoom(roomData as Room);
         setStage(roomData.stage || 'waiting');
       }
     });
+    // Listen to users in room
+    const unsubUsers = listenUsers(roomId, setUsers);
     return () => {
       unsubRoom();
+      unsubUsers();
     };
   }, [roomId]);
 
   // --- On Mount: Create/Join Room and User ---
   useEffect(() => {
     if (!roomId) return;
-    console.log("RoomPage: Initializing room", { roomId, roomType, expectedUsers });
-    
     // Generate or get user from localStorage
     let user = null;
     const stored = localStorage.getItem('dineosaur_user');
     if (stored) {
       user = JSON.parse(stored);
-      console.log("RoomPage: Found existing user", { userId: user.id, userName: user.name });
     } else {
       user = {
         id: generateUserId(),
@@ -83,10 +69,8 @@ export default function RoomPage() {
         joinedAt: new Date()
       };
       localStorage.setItem('dineosaur_user', JSON.stringify(user));
-      console.log("RoomPage: Created new user", { userId: user.id, userName: user.name });
     }
     setCurrentUser(user);
-    
     // Create room if not exists
     createRoom({
       id: roomId,
@@ -96,103 +80,47 @@ export default function RoomPage() {
       users: [],
       isActive: true,
       stage: 'waiting',
-      expectedUsers: roomType === 'group' ? expectedUsers : 2,
-    }).catch((error) => {
-      console.error("RoomPage: Error creating room", error);
-    });
-    
+    }).catch(() => {});
     // Add user to Firestore
-    upsertUser(roomId, user).catch((error) => {
-      console.error("RoomPage: Error adding user to room", error);
-    });
-    
+    upsertUser(roomId, user);
     // Remove user on unload
     const cleanup = () => removeUser(roomId, user.id);
     window.addEventListener('beforeunload', cleanup);
     return () => window.removeEventListener('beforeunload', cleanup);
-  }, [roomId, roomType, expectedUsers]);
+  }, [roomId, roomType]);
 
   // --- Progression Logic ---
-  // 1. Waiting: Advance to preferences when all users have joined (2 for couple, expectedUsers for group)
+  // 1. Waiting: Advance to preferences when all users have joined (2 for couple, up to 8 for group)
   useEffect(() => {
-    if (!room || !room.users.length) return;
+    if (!room || !users.length) return;
     if (stage === 'waiting') {
-      if (
-        (room.type === 'couple' && room.users.length === 2) ||
-        (room.type === 'group' && room.expectedUsers && room.users.length === room.expectedUsers)
-      ) {
+      if ((room.type === 'couple' && users.length === 2) || (room.type === 'group' && users.length >= 2)) {
         updateRoomStage(roomId, 'preferences');
       }
     }
-  }, [stage, room, roomId]);
+  }, [stage, users, room, roomId]);
 
   // 2. Preferences: Advance to swiping when all users have selected preferences
   useEffect(() => {
-    if (!room || !room.users.length) return;
+    if (!room || !users.length) return;
     if (stage === 'preferences') {
-      const allDone = room.users.every(u => u.preferences && u.preferences.length >= 3);
+      const allDone = users.every(u => u.preferences && u.preferences.length >= 3);
       if (allDone) {
-        // Set swipeDeadline to now + 5 minutes
-        const swipeDeadline = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-        import('@/lib/firebaseRoom').then(({ updateRoomStage }) => {
-          updateRoomStage(roomId, 'swiping');
-        });
-        import('firebase/firestore').then(({ updateDoc }) => {
-          updateDoc(roomRef(roomId), { swipeDeadline });
-        });
+        updateRoomStage(roomId, 'swiping');
       }
     }
-  }, [stage, room, roomId]);
+  }, [stage, users, room, roomId]);
 
   // 3. Swiping: Advance to results when all users are done swiping
   useEffect(() => {
-    if (!room || !room.users.length) return;
+    if (!room || !users.length) return;
     if (stage === 'swiping') {
-      const allDone = room.users.length === (room.expectedUsers || 2) && room.users.every(u => u.isDoneSwiping);
+      const allDone = users.every(u => u.isDoneSwiping);
       if (allDone) {
         updateRoomStage(roomId, 'results');
       }
     }
-  }, [stage, room, roomId]);
-
-  // Get user geolocation on mount
-  useEffect(() => {
-    if (!userLocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setUserLocation({ lat: latitude, lng: longitude });
-          // Optionally, store in Firestore under user
-          if (currentUser) {
-            upsertUser(roomId, { ...currentUser, location: { lat: latitude, lng: longitude } });
-          }
-        },
-        (err) => {
-          console.error('Geolocation error:', err);
-        }
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, currentUser]);
-
-  // Fetch and cache restaurants when entering swiping stage
-  useEffect(() => {
-    if (stage === 'swiping' && room && userLocation) {
-      // Use sessionStorage to avoid redundant fetches in the same session
-      const cacheKey = `dineosaur_restaurants_${roomId}`;
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        setRestaurants(JSON.parse(cached));
-        return;
-      }
-      // Gather all user tags (preferences)
-      const allTags = Array.from(new Set(room.users.flatMap(u => u.preferences)));
-      fetchAndCacheRestaurants(roomId, userLocation, allTags).then((data) => {
-        setRestaurants(data);
-        sessionStorage.setItem(cacheKey, JSON.stringify(data));
-      });
-    }
-  }, [stage, room, userLocation, roomId]);
+  }, [stage, users, room, roomId]);
 
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/room/${roomId}`;
@@ -247,7 +175,7 @@ export default function RoomPage() {
               <div>
                 <h1 className="text-xl font-bold text-gray-800">Room {roomId}</h1>
                 <p className="text-sm text-gray-600">
-                  {room.type === 'couple' ? 'Couple' : 'Group'} • {room.users.length} users
+                  {room.type === 'couple' ? 'Couple' : 'Group'} • {users.length} users
                 </p>
               </div>
             </div>
@@ -310,7 +238,6 @@ export default function RoomPage() {
             onComplete={handleSwipingComplete}
             roomId={roomId}
             userId={currentUser.id}
-            restaurants={restaurants}
           />
         )}
 
