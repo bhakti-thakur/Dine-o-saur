@@ -51,7 +51,7 @@ export async function createRoom(room: Room) {
 export async function upsertUser(roomId: string, user: User) {
   try {
     // Get the room document directly
-    const roomDocRef = roomRef(roomId);
+    //const roomDocRef = roomRef(roomId);
     const roomDoc = await getDocs(collection(db, 'rooms'));
     const roomData = roomDoc.docs.find(doc => doc.id === roomId)?.data() as Room;
     
