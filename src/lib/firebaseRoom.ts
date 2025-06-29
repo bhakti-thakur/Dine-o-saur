@@ -7,10 +7,12 @@ import {
   onSnapshot,
   addDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  getDocs
 } from 'firebase/firestore';
 import { Room, User, SwipeAction } from './types';
 import { getApps } from 'firebase/app';
+import { ROOM_TYPES } from './constants';
 
 console.log(getApps());
 
@@ -48,6 +50,42 @@ export async function createRoom(room: Room) {
 // Add or update a user in a room
 export async function upsertUser(roomId: string, user: User) {
   try {
+    // Get the room document directly
+    const roomDocRef = roomRef(roomId);
+    const roomDoc = await getDocs(collection(db, 'rooms'));
+    const roomData = roomDoc.docs.find(doc => doc.id === roomId)?.data() as Room;
+    
+    if (!roomData) {
+      throw new Error('Room not found');
+    }
+
+    // Get current user count
+    const usersSnapshot = await getDocs(collection(db, 'rooms', roomId, 'users'));
+    const currentUserCount = usersSnapshot.size;
+
+    // Check if user is already in the room
+    const existingUser = usersSnapshot.docs.find(doc => doc.id === user.id);
+    if (existingUser) {
+      // User already exists, allow update
+      await setDoc(userRef(roomId, user.id), {
+        ...user,
+        joinedAt: serverTimestamp(),
+      });
+      return;
+    }
+
+    // Get room type configuration
+    const roomType = ROOM_TYPES.find(type => type.id === roomData.type);
+    if (!roomType) {
+      throw new Error('Invalid room type');
+    }
+
+    // Check if room is at maximum capacity
+    if (currentUserCount >= roomType.maxUsers) {
+      throw new Error(`Room is full. Maximum ${roomType.maxUsers} users allowed for ${roomType.name} rooms.`);
+    }
+
+    // Add user to room
     await setDoc(userRef(roomId, user.id), {
       ...user,
       joinedAt: serverTimestamp(),

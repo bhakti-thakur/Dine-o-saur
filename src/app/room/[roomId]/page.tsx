@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Users, Copy, Check, ArrowLeft } from 'lucide-react';
 import { generateUserId, generateUserName, calculateExpiryTime } from '@/lib/utils';
-import { ROOM_EXPIRY_MINUTES } from '@/lib/constants';
+import { ROOM_EXPIRY_MINUTES, ROOM_TYPES } from '@/lib/constants';
 import { User, Room } from '@/lib/types';
 import PreferencePicker from '@/components/PreferencePicker';
 import SwipeScreen from '@/components/SwipeScreen';
@@ -33,6 +33,7 @@ export default function RoomPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   // --- Firestore Real-Time Listeners ---
   useEffect(() => {
@@ -82,7 +83,10 @@ export default function RoomPage() {
       stage: 'waiting',
     }).catch(() => {});
     // Add user to Firestore
-    upsertUser(roomId, user);
+    upsertUser(roomId, user).catch((error) => {
+      console.error('Failed to join room:', error);
+      setJoinError(error.message || 'Failed to join room. Room might be full.');
+    });
     // Remove user on unload
     const cleanup = () => removeUser(roomId, user.id);
     window.addEventListener('beforeunload', cleanup);
@@ -99,6 +103,26 @@ export default function RoomPage() {
       }
     }
   }, [stage, users, room, roomId]);
+
+  // Check if room is full and show appropriate message
+  useEffect(() => {
+    if (!room || !users.length) return;
+    
+    const roomType = ROOM_TYPES.find(type => type.id === room.type);
+    if (roomType && users.length >= roomType.maxUsers) {
+      // Check if current user is in the room
+      const isCurrentUserInRoom = users.some(u => u.id === currentUser?.id);
+      if (!isCurrentUserInRoom) {
+        setJoinError(`Room is full. Maximum ${roomType.maxUsers} users allowed for ${roomType.name} rooms.`);
+      } else {
+        // User is in the room, clear any previous error
+        setJoinError(null);
+      }
+    } else {
+      // Room is not full, clear any previous error
+      setJoinError(null);
+    }
+  }, [users, room, currentUser]);
 
   // 2. Preferences: Advance to swiping when all users have selected preferences
   useEffect(() => {
@@ -151,8 +175,24 @@ export default function RoomPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading room...</p>
+          {joinError ? (
+            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Room Full</h2>
+              <p className="text-gray-600 mb-6">{joinError}</p>
+              <button
+                onClick={() => window.history.back()}
+                className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading room...</p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -201,25 +241,51 @@ export default function RoomPage() {
           >
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <Users className="w-16 h-16 text-orange-500 mx-auto mb-6" />
-              <h2 className="text-3xl font-bold mb-4">Waiting for others...</h2>
-              <p className="text-gray-600 mb-8">
-                Share the room code with your friends to start the restaurant discovery journey!
-              </p>
               
-              <div className="bg-gray-50 rounded-xl p-6 mb-8">
-                <p className="text-sm text-gray-600 mb-2">Room Code</p>
-                <p className="text-3xl font-mono font-bold text-gray-800 tracking-widest">{roomId}</p>
-              </div>
-              
-              <div className="text-left bg-orange-50 rounded-xl p-6">
-                <h3 className="font-semibold mb-3">How it works:</h3>
-                <ol className="text-sm text-gray-700 space-y-2">
-                  <li>1. Everyone joins the room using the code above</li>
-                  <li>2. Each person selects their food preferences</li>
-                  <li>3. Swipe through restaurant recommendations</li>
-                  <li>4. Get matched with the best options for your group!</li>
-                </ol>
-              </div>
+              {/* Check if room is full */}
+              {(() => {
+                const roomType = ROOM_TYPES.find(type => type.id === room.type);
+                const isRoomFull = roomType && users.length >= roomType.maxUsers;
+                
+                if (isRoomFull) {
+                  return (
+                    <>
+                      <h2 className="text-3xl font-bold mb-4 text-red-600">Room Full</h2>
+                      <p className="text-gray-600 mb-8">
+                        This {room.type === 'couple' ? 'couple' : 'group'} room has reached its maximum capacity of {roomType?.maxUsers} users.
+                      </p>
+                      <div className="bg-red-50 rounded-xl p-6 mb-8">
+                        <p className="text-sm text-red-600 mb-2">Room Status</p>
+                        <p className="text-xl font-bold text-red-700">{users.length}/{roomType?.maxUsers} users</p>
+                      </div>
+                    </>
+                  );
+                }
+                
+                return (
+                  <>
+                    <h2 className="text-3xl font-bold mb-4">Waiting for others...</h2>
+                    <p className="text-gray-600 mb-8">
+                      Share the room code with your friends to start the restaurant discovery journey!
+                    </p>
+                    
+                    <div className="bg-gray-50 rounded-xl p-6 mb-8">
+                      <p className="text-sm text-gray-600 mb-2">Room Code</p>
+                      <p className="text-3xl font-mono font-bold text-gray-800 tracking-widest">{roomId}</p>
+                    </div>
+                    
+                    <div className="text-left bg-orange-50 rounded-xl p-6">
+                      <h3 className="font-semibold mb-3">How it works:</h3>
+                      <ol className="text-sm text-gray-700 space-y-2">
+                        <li>1. Everyone joins the room using the code above</li>
+                        <li>2. Each person selects their food preferences</li>
+                        <li>3. Swipe through restaurant recommendations</li>
+                        <li>4. Get matched with the best options for your group!</li>
+                      </ol>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </motion.div>
         )}
